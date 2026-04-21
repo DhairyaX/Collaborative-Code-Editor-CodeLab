@@ -1,0 +1,22 @@
+# Node modules
+**/node_modules
+
+# Build artifacts
+**/dist
+**/.vite
+**/*.tsbuildinfo
+
+# Environment files
+**/.env
+**/.env.local
+
+# Logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# OS/editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
