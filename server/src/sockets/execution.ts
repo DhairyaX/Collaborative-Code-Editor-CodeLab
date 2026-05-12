@@ -13,7 +13,7 @@ type ExecuteRunPayload = {
   language: string;
 };
 
-const ROOM_ID_PATTERN = /^[a-zA-Z0-9]{1,20}$/;
+const ROOM_ID_PATTERN = /^[a-zA-Z0-9-]{1,64}$/;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
 type RateLimitEntry = {
@@ -55,7 +55,7 @@ export function registerExecutionHandlers(io: Server) {
           executionId,
           roomId: payload?.roomId ?? "",
           success: false,
-          error: "Invalid roomId. Use alphanumeric characters only, max length 20."
+          error: "Invalid roomId. Use letters, numbers, and dashes only; max length 64."
         });
         return;
       }

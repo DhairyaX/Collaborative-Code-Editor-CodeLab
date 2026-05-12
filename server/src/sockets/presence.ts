@@ -1,7 +1,7 @@
 import type { Server } from "socket.io";
 
 import { touchSession } from "../services/postgresService.js";
-import { refreshPresence, removePresence, setPresence } from "../services/redisService.js";
+import { getRoomLocked, refreshPresence, removePresence, setPresence, setRoomLocked } from "../services/redisService.js";
 
 type CursorPosition = {
   lineNumber: number;
@@ -21,6 +21,11 @@ type CursorMovePayload = {
   name: string;
 };
 
+type RoomLockPayload = {
+  roomId: string;
+  locked: boolean;
+};
+
 type PresenceUser = {
   userId: string;
   name: string;
@@ -28,7 +33,7 @@ type PresenceUser = {
   roomId: string;
 };
 
-const ROOM_ID_PATTERN = /^[a-zA-Z0-9]{1,20}$/;
+const ROOM_ID_PATTERN = /^[a-zA-Z0-9-]{1,64}$/;
 const COLOR_PALETTE = [
   "#22c55e",
   "#06b6d4",
@@ -68,10 +73,27 @@ export function registerPresenceHandlers(io: Server) {
   const socketUsers = new Map<string, PresenceUser>();
 
   io.on("connection", (socket) => {
-    socket.on("room:join", (payload: RoomJoinPayload) => {
+    socket.on("room:join", async (payload: RoomJoinPayload) => {
       if (!payload || !isValidRoomId(payload.roomId)) {
         socket.emit("room:join:error", {
-          message: "Invalid roomId. Use alphanumeric characters only, max length 20."
+          message: "Invalid roomId. Use letters, numbers, and dashes only; max length 64."
+        });
+        return;
+      }
+
+      const activeUsers = Array.from(socketUsers.values()).filter(
+        (current) => current.roomId === payload.roomId
+      );
+      const wasLocked = await getRoomLocked(payload.roomId);
+
+      if (wasLocked && activeUsers.length === 0) {
+        await setRoomLocked(payload.roomId, false);
+      }
+
+      const isLocked = wasLocked && activeUsers.length > 0;
+      if (isLocked) {
+        socket.emit("room:join:error", {
+          message: "Room is locked. Ask the host to unlock it."
         });
         return;
       }
@@ -100,8 +122,21 @@ export function registerPresenceHandlers(io: Server) {
       socket.emit("room:joined", {
         roomId: payload.roomId,
         user,
-        users: usersInRoom
+        users: usersInRoom,
+        locked: isLocked
       });
+    socket.on("room:lock:set", async (payload: RoomLockPayload) => {
+      const currentUser = socketUsers.get(socket.id);
+      if (!currentUser || !payload || payload.roomId !== currentUser.roomId) {
+        return;
+      }
+
+      await setRoomLocked(payload.roomId, payload.locked);
+      io.to(payload.roomId).emit("room:lock:updated", {
+        roomId: payload.roomId,
+        locked: payload.locked
+      });
+    });
 
       socket.to(payload.roomId).emit("user:joined", {
         roomId: payload.roomId,
@@ -126,7 +161,7 @@ export function registerPresenceHandlers(io: Server) {
       });
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       const currentUser = socketUsers.get(socket.id);
       if (!currentUser) {
         return;
@@ -138,6 +173,13 @@ export function registerPresenceHandlers(io: Server) {
         roomId: currentUser.roomId,
         userId: currentUser.userId
       });
+
+      const remainingUsers = Array.from(socketUsers.values()).filter(
+        (current) => current.roomId === currentUser.roomId
+      );
+      if (remainingUsers.length === 0) {
+        await setRoomLocked(currentUser.roomId, false);
+      }
     });
   });
 }

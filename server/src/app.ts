@@ -4,6 +4,7 @@ import helmet from "helmet";
 
 import { config } from "./config.js";
 import { healthRouter } from "./routes/health.js";
+import authRouter from "./routes/auth.js";
 
 const app = express();
 
@@ -30,5 +31,6 @@ app.use(
 );
 
 app.use("/api", healthRouter);
+app.use("/auth", authRouter);
 
 export { app };

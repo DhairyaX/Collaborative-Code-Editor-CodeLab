@@ -14,13 +14,32 @@ import { startYjsServer } from "./sockets/yjsServer.js";
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: config.isProduction ? config.corsOrigin : true,
-    credentials: true
-  }
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
+  transports: ["polling", "websocket"],
+  allowEIO3: true
 });
 
 registerPresenceHandlers(io);
 registerExecutionHandlers(io);
+
+// Debug logging
+io.on("connection", (socket) => {
+  console.log(`[socket.io] ✅ Client connected: ${socket.id} (rooms: ${socket.rooms.size})`);
+  
+  socket.on("disconnect", (reason) => {
+    console.log(`[socket.io] ❌ Client disconnected: ${socket.id} - Reason: ${reason}`);
+  });
+  
+  socket.on("error", (error) => {
+    console.error(`[socket.io] ⚠️  Socket error: ${error}`);
+  });
+});
+
+io.on("error", (error) => {
+  console.error("[socket.io] Server error:", error);
+});
 
 let yjsServer: WebSocketServer | null = null;
 

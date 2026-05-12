@@ -24,6 +24,10 @@ function getPresencePattern(roomId: string): string {
   return `${config.presencePrefix}${roomId}:user:*`;
 }
 
+function getRoomLockKey(roomId: string): string {
+  return `${config.roomLockPrefix}${roomId}`;
+}
+
 export async function connectRedis(): Promise<void> {
   if (redisClient) {
     return;
@@ -151,4 +155,23 @@ export async function listPresence(roomId: string): Promise<PresenceRecord[]> {
   return values
     .filter((value): value is string => Boolean(value))
     .map((value) => JSON.parse(value) as PresenceRecord);
+}
+
+export async function setRoomLocked(roomId: string, locked: boolean): Promise<void> {
+  if (!redisClient || !redisReady) {
+    return;
+  }
+
+  const key = getRoomLockKey(roomId);
+  await redisClient.set(key, locked ? "1" : "0");
+}
+
+export async function getRoomLocked(roomId: string): Promise<boolean> {
+  if (!redisClient || !redisReady) {
+    return false;
+  }
+
+  const key = getRoomLockKey(roomId);
+  const value = await redisClient.get(key);
+  return value === "1";
 }

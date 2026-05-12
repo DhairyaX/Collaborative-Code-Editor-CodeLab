@@ -46,8 +46,14 @@ export const DEFAULT_SNIPPETS: LanguageCodeMap = {
 };
 
 const LANGUAGE_STORAGE_KEY = "codelab.editor.language";
+const LANGUAGE_STORAGE_KEY_PREFIX = "codelab.editor.language.room.";
 
-function getInitialLanguage(): EditorLanguage {
+function getInitialLanguage(roomId: string): EditorLanguage {
+  const roomValue = window.localStorage.getItem(`${LANGUAGE_STORAGE_KEY_PREFIX}${roomId}`);
+  if (SUPPORTED_LANGUAGES.includes(roomValue as EditorLanguage)) {
+    return roomValue as EditorLanguage;
+  }
+
   const storedValue = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
 
   if (SUPPORTED_LANGUAGES.includes(storedValue as EditorLanguage)) {
@@ -58,10 +64,11 @@ function getInitialLanguage(): EditorLanguage {
 }
 
 export function useEditorState(roomId: string) {
-  const [language, setLanguageState] = useState<EditorLanguage>(getInitialLanguage);
+  const [language, setLanguageState] = useState<EditorLanguage>(() => getInitialLanguage(roomId));
 
   const setLanguage = (nextLanguage: EditorLanguage) => {
     setLanguageState(nextLanguage);
+    window.localStorage.setItem(`${LANGUAGE_STORAGE_KEY_PREFIX}${roomId}`, nextLanguage);
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
   };
 

@@ -19,6 +19,7 @@ type RoomJoinedPayload = {
   roomId: string;
   user: PresenceUser;
   users: PresenceUser[];
+  locked: boolean;
 };
 
 type UserJoinedPayload = {
@@ -39,6 +40,11 @@ type CursorUpdatePayload = {
   name: string;
 };
 
+type RoomLockPayload = {
+  roomId: string;
+  locked: boolean;
+};
+
 type RemoteCursor = {
   userId: string;
   name: string;
@@ -54,6 +60,11 @@ export type RemoteCursorEntry = {
 };
 
 function getDisplayName(): string {
+  const user = JSON.parse(window.localStorage.getItem("user") || "{}");
+  if (typeof user.email === "string" && user.email.trim()) {
+    return user.email.trim();
+  }
+
   const existing = window.localStorage.getItem(DISPLAY_NAME_STORAGE_KEY);
   if (existing && existing.trim()) {
     return existing;
@@ -70,11 +81,16 @@ export function usePresence(roomId: string) {
   const [currentUser, setCurrentUser] = useState<PresenceUser | null>(null);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor>>({});
   const [participants, setParticipants] = useState<Record<string, PresenceUser>>({});
+  const [roomLocked, setRoomLocked] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     const socket: Socket = io(SOCKET_SERVER_URL, {
-      transports: ["websocket"]
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5
     });
     socketRef.current = socket;
 
@@ -96,6 +112,11 @@ export function usePresence(roomId: string) {
       setSocketStatus("disconnected");
     });
 
+    socket.on("connect_error", (error) => {
+      console.error("Socket.io connection error:", error);
+      setSocketStatus("disconnected");
+    });
+
     socket.on("room:join:error", () => {
       setSocketStatus("disconnected");
     });
@@ -106,6 +127,7 @@ export function usePresence(roomId: string) {
       }
 
       setCurrentUser(payload.user);
+      setRoomLocked(payload.locked ?? false);
 
       const participantMap: Record<string, PresenceUser> = {};
       payload.users.forEach((user) => {
@@ -160,12 +182,21 @@ export function usePresence(roomId: string) {
       }));
     });
 
+    socket.on("room:lock:updated", (payload: RoomLockPayload) => {
+      if (payload.roomId !== roomId) {
+        return;
+      }
+
+      setRoomLocked(payload.locked);
+    });
+
     return () => {
       socketRef.current = null;
       socket.disconnect();
       setCurrentUser(null);
       setParticipants({});
       setRemoteCursors({});
+      setRoomLocked(false);
     };
   }, [displayName, roomId]);
 
@@ -188,6 +219,17 @@ export function usePresence(roomId: string) {
     [remoteCursors]
   );
 
+  const updateRoomLock = (locked: boolean) => {
+    if (!socketRef.current || socketRef.current.connected !== true) {
+      return;
+    }
+
+    socketRef.current.emit("room:lock:set", {
+      roomId,
+      locked
+    });
+  };
+
   return {
     displayName,
     socketStatus,
@@ -195,6 +237,9 @@ export function usePresence(roomId: string) {
     currentUser,
     remoteCursorEntries,
     participantCount: Object.keys(participants).length + (currentUser ? 1 : 0),
-    moveCursor
+    moveCursor,
+    roomLocked,
+    updateRoomLock,
+    participantsList: Object.values(participants)
   };
 }

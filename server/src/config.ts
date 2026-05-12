@@ -14,6 +14,7 @@ export const config = {
   postgresUrl: process.env.POSTGRES_URL ?? "postgresql://codelab:codelab_password@localhost:5432/codelab",
   yjsSnapshotPrefix: process.env.YJS_SNAPSHOT_PREFIX ?? "yjs:snapshot:",
   presencePrefix: process.env.PRESENCE_PREFIX ?? "presence:room:",
+  roomLockPrefix: process.env.ROOM_LOCK_PREFIX ?? "room:lock:",
   presenceTtlSeconds: Number(process.env.PRESENCE_TTL_SECONDS ?? 60),
   executionTimeoutMs: Number(process.env.EXECUTION_TIMEOUT_MS ?? 10_000),
   executionMemoryBytes: Number(process.env.EXECUTION_MEMORY_BYTES ?? 52_428_800),
